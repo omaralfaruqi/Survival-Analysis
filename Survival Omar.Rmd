@@ -1,0 +1,104 @@
+---
+title: "Survival Omar"
+author: "Dr Omar Bin Nazmi"
+date: 21 Januari 2024
+format:
+    html:
+      toc: true
+      toc-title: Contents
+      toc-location: left
+      toc-depth: 3
+      toc-expand: 1
+      number-sections: true
+      code-fold: true
+      code-summary: "Show the Code"
+      theme:
+        light: united
+        dark: cyborg
+      embed-resources: true
+editor: visual
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(repos = c(CRAN = "https://cran.r-project.org"))
+
+```
+
+```{r}
+library(haven)
+library(here)
+library(survminer)
+library(lubridate)
+library(survival)
+library(readxl)
+library(gtsummary)
+```
+```{r}
+datasurv <- read_excel("C:/Users/H P/OneDrive - The Goose and Duck/Desktop/Data Survival/Data Survival NHL.xlsx")
+str(datasurv)
+```
+```{r}
+library(janitor)
+surv_data <- datasurv %>% clean_names()
+str(surv_data)
+```
+
+```{r}
+surv_data <- surv_data %>% mutate(dur = surv_data$date_of_died %--% surv_data$date_still_alive) %>%
+  mutate(dur = as.duration(dur))
+
+surv_data$chemotherapy_0_no_yes_1_2_unknown <- as.factor(surv_data$chemotherapy_0_no_yes_1_2_unknown)
+surv_data$x60_0_60_1 <- as.factor(surv_data$x60_0_60_1)
+surv_data$stage120_stage31satge42unkown3 <- as.factor(surv_data$stage120_stage31satge42unkown3)
+surv_data$alive_0_death_1 <- as.factor(surv_data$alive_0_death_1)
+str(surv_data)
+```
+```{r}
+KM1 <- survfit(Surv(time = surv_data$duration_in_month_guna_outcome, event = alive_0_death_1 == '1') ~ 1,
+               type = "kaplan-meier", data = surv_data)
+summary(KM1)
+```
+```{r}
+ggsurvplot(KM1, data = surv_data, risk.table = TRUE)
+```
+
+```{r}
+KM1.age <- survfit(Surv(time = surv_data$duration_in_month_guna_outcome, event = alive_0_death_1 == '1') ~ x60_0_60_1,
+               type = "kaplan-meier", data = surv_data)
+summary(KM1.age)
+```
+
+```{r}
+ggsurvplot(KM1.age, data = surv_data, risk.table = TRUE,
+           linetype = c(3,6), pval = TRUE)
+```
+
+```{r}
+Log_rank_age <- survdiff(Surv(time = surv_data$duration_in_month_guna_outcome, event = alive_0_death_1 == '1') ~ x60_0_60_1, data = surv_data, rho = 1)
+Log_rank_age
+```
+
+```{r}
+coxmodel1 <- coxph(Surv(time = surv_data$duration_in_month_guna_outcome, event = alive_0_death_1 == '1') ~ x60_0_60_1 + stage120_stage31satge42unkown3 + chemotherapy_0_no_yes_1_2_unknown, data = surv_data)
+
+coxmodel1
+```
+```{r}
+coxmodel1.ia <- coxph(Surv(time = surv_data$duration_in_month_guna_outcome, event = alive_0_death_1 == '1') ~ x60_0_60_1 + stage120_stage31satge42unkown3 + chemotherapy_0_no_yes_1_2_unknown + x60_0_60_1:stage120_stage31satge42unkown3, data = surv_data)
+
+coxmodel1.ia
+```
+```{r}
+prop.h <- cox.zph(coxmodel1, 
+                  transform = 'km', 
+                  global = TRUE)
+plot(prop.h)
+```
+
+```{r}
+coxmodel1 %>% 
+  tbl_regression(
+    exponentiate = TRUE)
+```
+
